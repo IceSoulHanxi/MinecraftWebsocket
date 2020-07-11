@@ -14,7 +14,7 @@ import java.lang.reflect.Method;
 public class MinecraftWebsocket {
     static final String modId = "mcwebsocket";
     static final String name = "MCWebsocket";
-    static final String version = "1.1";
+    static final String version = "1.2";
 
     public MinecraftWebsocket() {
         try { // 由于Forge的反混淆排序在Coremod之后 所以说放到Mod加载的时候再添加Transformer
