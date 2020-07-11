@@ -29,20 +29,23 @@ public class WebSocketClientHandler extends SimpleChannelInboundHandler<Object> 
     }
 
     public ChannelPromise handshakeFuture() {
+        int count = 0; // handlerAdded() 方法会在netty线程中执行,获取时可能为null,最多阻塞1000ms等待
+        while (handshakeFuture == null && count < 1000) {
+            try {
+                Thread.sleep(1);
+                count++;
+            } catch (InterruptedException ignored) {
+            }
+        }
         return handshakeFuture;
     }
 
+    // 被添加到pipeline后开始进行Websocket握手
     @Override
     public void handlerAdded(ChannelHandlerContext ctx) {
         handshakeFuture = ctx.newPromise();
         handshaker.handshake(ctx.channel());
     }
-
-//    @Override
-//    public void channelActive(ChannelHandlerContext ctx) {
-//        handshaker.handshake(ctx.channel());
-//        ctx.fireChannelActive();
-//    }
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {

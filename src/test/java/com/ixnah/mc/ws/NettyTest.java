@@ -37,8 +37,7 @@ public class NettyTest {
 
     private static final String userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36 Edg/83.0.478.58";
 
-
-    @Test
+//    @Test
     public void test() throws Throwable {
         URI uri = URI.create("ws://127.0.0.1/");
         InetAddress address = InetAddress.getByName(uri.getHost());

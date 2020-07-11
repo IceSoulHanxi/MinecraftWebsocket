@@ -48,7 +48,6 @@ public class HttpClientHandler extends SimpleChannelInboundHandler<Object> imple
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, Object msg) {
-        System.out.println(msg);
         if (msg instanceof HttpResponse && !responsePromiseQueue.isEmpty()) {
             responsePromiseQueue.poll().setSuccess((HttpResponse) msg);
         }

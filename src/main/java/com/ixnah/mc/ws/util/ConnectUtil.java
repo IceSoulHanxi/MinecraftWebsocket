@@ -65,19 +65,19 @@ public class ConnectUtil {
     public static NetworkManager createConnection(ServerData serverData, boolean useNativeTransport) throws UnknownHostException {
         String address = serverData.serverIP;
         try {
-            if (address.startsWith("http://") || address.startsWith("https://"))
+            if (address.startsWith("http:") || address.startsWith("https:"))
                 address = address.replaceFirst("http", "ws");
-            URI uri = new URI(address);
+            URI uri = URI.create(address); // IllegalArgumentException
             if (Arrays.asList("ws", "wss").contains(uri.getScheme().toLowerCase())) {
                 return createWebsocketConnection(uri, useNativeTransport); // Websocket
             } else {
                 StringBuilder sb = new StringBuilder();
-                sb.append(uri.getHost());
+                sb.append(uri.getHost().trim()); // NullPointerException
                 if (uri.getPort() != -1)
                     sb.append(":").append(uri.getPort());
                 address = sb.toString();
             }
-        } catch (URISyntaxException ignored) {
+        } catch (IllegalArgumentException | NullPointerException ignored) {
         }
         ServerAddress serveraddress = ServerAddress.fromString(address);
         return NetworkManager.createNetworkManagerAndConnect(InetAddress.getByName(serveraddress.getIP()), serveraddress.getPort(), useNativeTransport);
@@ -133,14 +133,16 @@ public class ConnectUtil {
                 .add(CACHE_CONTROL, NO_STORE) // 设置CDN不缓存
                 .add(CONNECTION, KEEP_ALIVE) // 设置长链接
                 .add(AUTHORIZATION, playerId); // 传递UUID
-        Future<HttpResponse> responseFuture = httpClient.sendRequest(request).syncUninterruptibly(); // syncUninterruptibly
+        Future<HttpResponse> responseFuture = httpClient.sendRequest(request).syncUninterruptibly();
         if (!responseFuture.isSuccess()) {
             responseFuture.cause().printStackTrace();
             throw new RuntimeException(responseFuture.cause());
         }
         HttpResponse response = responseFuture.getNow();
         if (!response.status().equals(OK)) {
-            throw new RuntimeException(response.status().toString());
+            RuntimeException exception = new RuntimeException(response.status().toString());
+            exception.printStackTrace();
+            throw exception;
         }
 
         String token = ((FullHttpResponse) response).content().toString(Charset.defaultCharset());
@@ -149,18 +151,14 @@ public class ConnectUtil {
         WebSocketClientHandshaker handshaker = WebSocketClientHandshakerFactory
                 .newHandshaker(uri, WebSocketVersion.V13, "Minecraft", true, headers);
         WebSocketClientHandler webSocketClientHandler = new WebSocketClientHandler(handshaker);
-        channel.pipeline().replace("HttpClientHandler", "WebSocketClientHandler", webSocketClientHandler);
-        System.out.println(channel.pipeline());
-        // 发送WebSocket握手请求
-        Future<?> handshakeFuture = webSocketClientHandler.handshakeFuture().awaitUninterruptibly(); // 阻塞: 等待握手结束
+        channel.pipeline().replace("HttpClientHandler", "WebSocketClientHandler", webSocketClientHandler); // 发送WebSocket握手请求
+        Future<?> handshakeFuture = webSocketClientHandler.handshakeFuture().syncUninterruptibly(); // 阻塞: 等待握手结束
         if (!handshakeFuture.isSuccess()) { // 握手失败 抛出异常退出连接
             handshakeFuture.cause().printStackTrace();
             throw new RuntimeException(handshakeFuture.cause());
         }
-        System.out.println("handshaked");
-        System.out.println(channel.pipeline());
 
-        channel.pipeline()
+        channel.pipeline() // 添加MC网络处理器
                 .addLast("timeout", new ReadTimeoutHandler(30))
                 .addLast("PacketToFrameHandler", new PacketToFrameHandler())
                 .addLast("splitter", new NettyVarint21FrameDecoder())
@@ -169,20 +167,19 @@ public class ConnectUtil {
                 .addLast("encoder", new NettyPacketEncoder(EnumPacketDirection.SERVERBOUND))
                 .addLast("packet_handler", networkmanager);
 
-        System.out.println(channel.pipeline());
         try {
+            // 告知MC网络管理器 连接已建立
             networkmanager.channelActive(channel.pipeline().firstContext());
         } catch (Exception e) {
             e.printStackTrace();
         }
-        System.out.println(channel.pipeline());
-        System.out.println("channelActive");
         return networkmanager;
     }
 
     private static final AtomicInteger CONNECTION_ID = new AtomicInteger(0);
     private static final Logger LOGGER = LogManager.getLogger();
 
+    // GuiConnecting.connect(String ip, int port)
     public static void connect(GuiConnecting connecting, ServerData serverData) {
         LOGGER.info("Connecting to {}", serverData.serverIP);
         new Thread("Server Connector #" + CONNECTION_ID.incrementAndGet()) {
@@ -194,7 +191,6 @@ public class ConnectUtil {
                     if (connecting.cancel) return;
 
                     connecting.networkManager = createConnection(serverData, connecting.mc.gameSettings.isUsingNativeTransport());
-//                            NetworkManager.createNetworkManagerAndConnect(inetaddress, port, connecting.mc.gameSettings.isUsingNativeTransport());
                     InetSocketAddress socketAddress = (InetSocketAddress) connecting.networkManager.channel().remoteAddress();
                     inetaddress = socketAddress.getAddress();
                     port = socketAddress.getPort();
