@@ -125,9 +125,12 @@ public class ConnectUtil {
         }).channel(oclass).connect(address, port).syncUninterruptibly().channel();
 
         String playerId = Minecraft.getMinecraft().getSession().getPlayerID();
+        String host = uri.getHost();
+        if (uri.getPort() != -1)
+            host = host + ":" + uri.getPort();
         HttpRequest request = new DefaultFullHttpRequest(HTTP_1_1, GET, uri.getPath());
         request.headers()
-                .add(HOST, uri.getHost())
+                .add(HOST, host)
                 .add(USER_AGENT, userAgent)
                 .add(PRAGMA, NO_CACHE)
                 .add(CACHE_CONTROL, NO_STORE) // 设置CDN不缓存
